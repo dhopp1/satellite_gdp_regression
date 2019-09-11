@@ -1,0 +1,2 @@
+id,country,region,city,latitude,longitude,population,population_source,population_date,gdp,gdp_source,gdp_date,age,capture_date,notes
+1,us,Northern America,Boston,42.3592969,-71.0864768,1114624,http://worldpopulationreview.com/us-cities/boston-population/,2018,438684,https://fred.stlouisfed.org/series/NGMP14460,2017,1630,2019-09-11,"includes Boston, Cambridge, Somerville, Medford, Malden, Everett, Revere"
