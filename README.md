@@ -1,5 +1,6 @@
 # satellite\_gdp\_regression
-A project to predict GDP and potentially other metrics of a city based on a satellite image of the city. <br><br>Satellite images come from google maps in the form of <https://www.google.com/maps/@lat,long,20000m/data=!3m1!1e3>, then screen shot, dimensions of 3360 × 1896.
+A project to predict GDP and potentially other metrics of a city based on a satellite image of the city. <br><br>Satellite images come from google maps.
+<br> Images stored at: <https://satellite-gdp-regression-images.s3.eu-central-1.amazonaws.com/images/>
 # Key File
 - `id` - unique id
 - `country` - country where the city is located
@@ -15,3 +16,4 @@ A project to predict GDP and potentially other metrics of a city based on a sate
 - `gdp_date` - the as of date of the gdp date
 - `age` - the founding year of the city
 - `notes` - additional notes on the data
+- `map_url` - google map url of the image
