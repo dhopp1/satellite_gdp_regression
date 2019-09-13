@@ -1,3 +1,6 @@
-requests
-pandas
-time
+numpy==1.17.2
+pandas==0.25.1
+requests==2.22.0
+scikit-image
+torch==1.2.0
+torchvision==0.4.0
