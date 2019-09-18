@@ -11,6 +11,8 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
+from torch.utils.data.sampler import SubsetRandomSampler
+
 
 class SatelliteDataset(Dataset):
     def __init__(self, csv_path, image_path, label="gdp", transformations=None):
@@ -68,5 +70,20 @@ transformations = transforms.Compose([
     ])
 
 
-test = SatelliteDataset("../../data/key.csv", "../../data/images/", label="population", transformations=transformations)
-test.__getitem__(2, False, True)
+images = SatelliteDataset("../../data/key.csv", "../../data/images/", label="population", transformations=transformations)
+
+# train test split
+test_ratio = 0.2
+n_batches = 10
+indices = list(range(images.__len__()))
+np.random.shuffle(indices)
+split = int(np.floor(test_ratio * images.__len__()))
+train_index, test_index = indices[split:], indices[:split]
+
+train_sampler = SubsetRandomSampler(train_index)
+test_sampler = SubsetRandomSampler(test_index)
+
+test_loader = torch.utils.data.DataLoader(dataset=images, batch_size=n_batches, shuffle=False, sampler=train_sampler)
+train_loader = torch.utils.data.DataLoader(dataset=images, batch_size=n_batches, shuffle=False, sampler=test_sampler)
+
+
