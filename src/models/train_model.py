@@ -37,8 +37,14 @@ class SatelliteDataset(Dataset):
         self.to_tensor = transforms.ToTensor()
         self.transformations = transformations
         self.data_info = tmp
+        
         self.image_arr = image_path + self.data_info.loc[:,'id'].astype(str) + '.png'
         self.label_arr = self.data_info.loc[:,label]
+        self.city_arr = self.data_info.loc[:,'city']
+        self.state_arr = self.data_info.loc[:,'state']
+        self.country_arr = self.data_info.loc[:,'country']
+        self.region_arr = self.data_info.loc[:,'region']
+        
         self.data_len = len(self.data_info)
         
     def __getitem__(self, index, transformed_show=False, orig_show=False):
@@ -53,13 +59,21 @@ class SatelliteDataset(Dataset):
         else:
             img_tensor = self.to_tensor(img)
 
+        city = self.city_arr[index]
+        state = self.state_arr[index]
+        country = self.country_arr[index]
+        region = self.region_arr[index]
         if orig_show:
-            plt.imshow(img)       
+            plt.imshow(img)
+            plt.title(f'{city}, {state}, {country}, {region}')
         if transformed_show:
             plt.imshow(img_tensor.permute(1,2,0))
+            plt.title(f'{city}, {state}, {country}, {region}')
         
         label = self.label_arr[index]
-        return (img_tensor, label)
+        
+        if orig_show == False and transformed_show == False:
+            return (img_tensor, label)
         
     def __len__(self):
         return self.data_len
@@ -99,8 +113,9 @@ transformations = transforms.Compose([
     ])
 images = SatelliteDataset("../../data/key.csv", "../../data/images/", label="population", transformations=transformations)
 
+
 # train test split
-test_ratio = 0.2
+test_ratio = 0.1
 batch_size = 10
 indices = list(range(images.__len__()))
 np.random.shuffle(indices)
@@ -122,8 +137,59 @@ class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
         self.fc1 = nn.Linear(channels * x_dim * y_dim, 500)
-        self.fc2 = nn.Linear(500, 1)
+        self.fc2 = nn.Linear(500, 200)
+        self.fc3 = nn.Linear(200, 1)
     
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        return self.fc2(x)
+        x = F.relu(self.fc2(x))
+        return self.fc3(x)
+
+
+lr = 1e-2
+n_epochs = 10
+net = Net()
+criterion = nn.MSELoss(reduction='mean')
+optimizer = optim.Adam(net.parameters(), lr=lr)
+
+# training the model
+total_loss = []
+for epoch in range(n_epochs):
+    epoch_loss = []
+    for i, data in enumerate(train_loader, 0):
+        inputs, labels = data
+        inputs = inputs.view(-1, channels * x_dim * y_dim)
+        
+        optimizer.zero_grad()
+        
+        outputs = net(inputs)
+        loss = criterion(outputs, labels)
+        epoch_loss.append(np.mean(loss.data.numpy()))
+        loss.backward()
+        optimizer.step()
+    total_loss.append(epoch_loss)
+    print(f'epoch {epoch}: loss {np.mean(epoch_loss)}')
+
+plt.plot(total_loss)
+
+
+# evaluation
+predictions = []
+actual = []
+net.eval()
+for i, data in enumerate(test_loader, 0):
+    inputs, labels = data
+    actual.append(labels)
+    inputs = inputs.view(-1, channels * x_dim * y_dim)
+    outputs = net(inputs)
+    predictions.append(outputs)
+
+
+# individual check
+index= 6
+predicted = round(net(test_loader.dataset.__getitem__(index)[0].view(-1, channels * x_dim * y_dim)).detach().numpy()[0][0], 0)
+actual = test_loader.dataset.__getitem__(index)[1]
+print(f'Predicted: {predicted}')
+print(f'Actual: {actual}')
+print(f'Off by: {actual - predicted}')
+test_loader.dataset.__getitem__(index, transformed_show=True)
