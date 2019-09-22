@@ -80,7 +80,7 @@ class SatelliteDataset(Dataset):
     
 
 # calculating mean and std for the three channels for normalization
-if True:
+if False:
     # load with no transformations
     images = SatelliteDataset("../../data/key.csv", "../../data/images/", label="population")
     # initialize arrays to store means and stdevs
@@ -100,6 +100,11 @@ if True:
         print(i)
     print(f'Means :{np.mean(channel_1_mean)}, {np.mean(channel_2_mean)}, {np.mean(channel_3_mean)}')
     print(f'Std :{np.mean(channel_1_std)}, {np.mean(channel_2_std)}, {np.mean(channel_3_std)}')
+    means = [np.mean(channel_1_mean), np.mean(channel_2_mean), np.mean(channel_3_mean)]
+    std = [np.mean(channel_1_std), np.mean(channel_2_std), np.mean(channel_2_std)]
+else:
+    means = [0.22847716510295868, 0.3062216639518738, 0.2528402805328369]
+    std = [0.13356611132621765, 0.10527726262807846, 0.11306707561016083]
 
 # generating final dataset with transformations, below for reference
 # Means :0.22847716510295868, 0.3062216639518738, 0.2528402805328369
@@ -108,11 +113,22 @@ transformations = transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(256),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[np.mean(channel_1_mean), np.mean(channel_2_mean), np.mean(channel_3_mean)],
-                     std=[np.mean(channel_1_std), np.mean(channel_2_std), np.mean(channel_2_std)])
+    transforms.Normalize(mean=means,
+                     std=std)
     ])
-images = SatelliteDataset("../../data/key.csv", "../../data/images/", label="population", transformations=transformations)
-
+    
+label = "gdp"
+classification = False
+images = SatelliteDataset("../../data/key.csv", "../../data/images/", label=label, transformations=transformations)
+if classification:
+    classes = pd.read_csv("../../data/key.csv")
+    n_classes = len(classes.loc[~pd.isna(classes.capture_date),label].unique())
+    classes = classes.loc[~pd.isna(classes.capture_date),label].unique()
+    class_key = {}
+    for i in range(len(classes)):
+        class_key[classes[i]] = i
+else:
+    n_classes = 1
 
 # train test split
 test_ratio = 0.1
@@ -138,7 +154,7 @@ class Net(nn.Module):
         super(Net, self).__init__()
         self.fc1 = nn.Linear(channels * x_dim * y_dim, 500)
         self.fc2 = nn.Linear(500, 200)
-        self.fc3 = nn.Linear(200, 1)
+        self.fc3 = nn.Linear(200, n_classes)
     
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -149,7 +165,10 @@ class Net(nn.Module):
 lr = 1e-2
 n_epochs = 10
 net = Net()
-criterion = nn.MSELoss(reduction='mean')
+if classification:
+    criterion = nn.CrossEntropyLoss()
+else:
+    criterion = nn.MSELoss(reduction='mean')
 optimizer = optim.Adam(net.parameters(), lr=lr)
 
 # training the model
@@ -163,7 +182,14 @@ for epoch in range(n_epochs):
         optimizer.zero_grad()
         
         outputs = net(inputs)
-        loss = criterion(outputs, labels)
+        
+        if classification:
+            labels = [class_key[i] for i in labels]
+            labels = torch.tensor(labels)
+            loss = criterion(outputs, labels)
+        else:
+            loss = criterion(outputs, labels)
+            
         epoch_loss.append(np.mean(loss.data.numpy()))
         loss.backward()
         optimizer.step()
@@ -182,14 +208,42 @@ for i, data in enumerate(test_loader, 0):
     actual.append(labels)
     inputs = inputs.view(-1, channels * x_dim * y_dim)
     outputs = net(inputs)
+    if classification:
+        outputs = torch.max(outputs, 1)[1].numpy()
+        reverse_key = {v: k for k, v in class_key.items()}
+        outputs = [reverse_key[i] for i in outputs]
     predictions.append(outputs)
-
+if classification:
+    accuracy = 0
+    for i in range(len(predictions)):
+        accuracy += sum([x==y for (x,y) in zip(list(actual[i]), predictions[i])]) / len(predictions[i])
+    accuracy = accuracy/len(predictions)
+    print(f'{accuracy * 100}% accuracy')
+else:
+    mse = 0
+    me = 0
+    for i in range(len(predictions)):
+        pred = pd.Series([i[0] for i in predictions[0].detach().numpy()])
+        act = pd.Series([i for i in actual[0].numpy()])
+        me += abs((pred - act)).mean()
+        mse += ((pred - act)**2).mean()
+    me /= len(predictions)
+    mse /= len(predictions)
+    print(f'{round(mse, 0)} MSE')
+    print(f'{round(me, 0)} ME')
+    
+    
 
 # individual check
-index= 6
-predicted = round(net(test_loader.dataset.__getitem__(index)[0].view(-1, channels * x_dim * y_dim)).detach().numpy()[0][0], 0)
+index= 4
+if classification:
+    predicted = torch.max(net(test_loader.dataset.__getitem__(index)[0].view(-1, channels * x_dim * y_dim)), 1).indices.numpy()[0]
+    predicted = reverse_key[predicted]
+else:
+    predicted = round(net(test_loader.dataset.__getitem__(index)[0].view(-1, channels * x_dim * y_dim)).detach().numpy()[0][0], 0)
 actual = test_loader.dataset.__getitem__(index)[1]
 print(f'Predicted: {predicted}')
 print(f'Actual: {actual}')
-print(f'Off by: {actual - predicted}')
+if not(classification):
+    print(f'Off by: {actual - predicted}')
 test_loader.dataset.__getitem__(index, transformed_show=True)
