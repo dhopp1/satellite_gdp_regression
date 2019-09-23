@@ -106,9 +106,7 @@ else:
     means = [0.22847716510295868, 0.3062216639518738, 0.2528402805328369]
     std = [0.13356611132621765, 0.10527726262807846, 0.11306707561016083]
 
-# generating final dataset with transformations, below for reference
-# Means :0.22847716510295868, 0.3062216639518738, 0.2528402805328369
-# Std :0.13356611132621765, 0.10527726262807846, 0.11306707561016083
+
 transformations = transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(256),
@@ -118,8 +116,11 @@ transformations = transforms.Compose([
     ])
     
 label = "gdp"
-classification = False
 images = SatelliteDataset("../../data/key.csv", "../../data/images/", label=label, transformations=transformations)
+if type(images.__getitem__(0)[1]) == str:
+    classification = True
+else:
+    classification = False
 if classification:
     classes = pd.read_csv("../../data/key.csv")
     n_classes = len(classes.loc[~pd.isna(classes.capture_date),label].unique())
@@ -129,6 +130,7 @@ if classification:
         class_key[classes[i]] = i
 else:
     n_classes = 1
+    
 
 # train test split
 test_ratio = 0.1
@@ -170,6 +172,7 @@ if classification:
 else:
     criterion = nn.MSELoss(reduction='mean')
 optimizer = optim.Adam(net.parameters(), lr=lr)
+
 
 # training the model
 total_loss = []
@@ -213,6 +216,7 @@ for i, data in enumerate(test_loader, 0):
         reverse_key = {v: k for k, v in class_key.items()}
         outputs = [reverse_key[i] for i in outputs]
     predictions.append(outputs)
+    
 if classification:
     accuracy = 0
     for i in range(len(predictions)):
