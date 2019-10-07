@@ -16,7 +16,12 @@ import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 
-
+# parameters
+label = "gdp"
+test_ratio = 0.2
+batch_size = 10
+lr = 1e-3
+n_epochs = 20
 
 class SatelliteDataset(Dataset):
     def __init__(self, csv_path, image_path, label="gdp", transformations=None):
@@ -115,7 +120,6 @@ transformations = transforms.Compose([
                      std=std)
     ])
     
-label = "population"
 images = SatelliteDataset("../../data/key.csv", "../../data/images/", label=label, transformations=transformations)
 if type(images.__getitem__(0)[1]) == str:
     classification = True
@@ -133,8 +137,6 @@ else:
     
 
 # train test split
-test_ratio = 0.1
-batch_size = 10
 indices = list(range(images.__len__()))
 np.random.shuffle(indices)
 split = int(np.floor(test_ratio * images.__len__()))
@@ -181,8 +183,6 @@ class Net(nn.Module):
         return x
 
 
-lr = 1e-3
-n_epochs = 10
 net = Net()
 if classification:
     criterion = nn.CrossEntropyLoss()
@@ -197,11 +197,10 @@ for epoch in range(n_epochs):
     epoch_loss = []
     for i, data in enumerate(train_loader, 0):
         inputs, labels = data
-        #inputs = inputs.view(-1, channels * x_dim * y_dim)
         
         optimizer.zero_grad()
         
-        outputs = net(inputs)
+        outputs = net(inputs).squeeze()
         
         if classification:
             labels = [class_key[i] for i in labels]
@@ -215,7 +214,7 @@ for epoch in range(n_epochs):
         loss.backward()
         optimizer.step()
     
-    total_loss.append(epoch_loss)
+    total_loss.append(np.mean(epoch_loss))
     if classification:
         torch.save(net.state_dict(), 'states/classification_model.pth')
         torch.save(optimizer.state_dict(), 'states/classification_optimizer.pth')
@@ -223,7 +222,7 @@ for epoch in range(n_epochs):
         torch.save(net.state_dict(), 'states/regression_model.pth')
         torch.save(optimizer.state_dict(), 'states/regression_optimizer.pth')
     # net = Net()
-    # net.load_state_dict(torch.load('states/classification_model.pth'))
+    # net.load_state_dict(torch.load('states/regression_model.pth'))
     print(f'epoch {epoch}: loss {np.mean(epoch_loss)}')
 
 plt.plot(total_loss)
@@ -262,17 +261,35 @@ else:
     mse /= len(predictions)
     print(f'{round(mse, 0)} MSE')
     print(f'{round(me, 0)} ME')
-    
-    
+
+# recording evaluation
+evaluation = pd.read_csv('evaluation.csv')
+if classification:
+    metric = 'Cross Entropy Loss'
+    score = accuracy
+else:
+    metric = 'RMSE'
+    score = np.sqrt(mse)
+tmp = pd.DataFrame(
+    {'net_schema': str(net),
+     'lr': lr,
+     'target': label,
+     'n_train_images': len(train_index),
+     'n_test_images': len(test_index),
+     'epochs': n_epochs,
+     'metric': metric,
+     'score': score
+     },
+     index=[0])
+evaluation.append(tmp).to_csv('evaluation.csv', index=False)
 
 # individual check, have to modify to be input of 4 dimensional convolutional network
-index= 4
+index = 67
 if classification:
-    predicted = torch.max(net(test_loader.dataset.__getitem__(index)[0].view(-1, channels * x_dim * y_dim)), 1).indices.numpy()[0]
+    predicted = torch.max(net(test_loader.dataset.__getitem__(index)[0].unsqueeze(0)), 1).indices.numpy()[0]
     predicted = reverse_key[predicted]
 else:
-    # predicted = round(net(test_loader.dataset.__getitem__(index)[0].view(-1, channels * x_dim * y_dim)).detach().numpy()[0][0], 0)
-    predicted = round(net(test_loader.dataset.__getitem__(index)[0]).detach().numpy()[0][0], 0)
+    predicted = round(net(test_loader.dataset.__getitem__(index)[0].unsqueeze(0)).detach().numpy()[0][0], 0)
 actual = test_loader.dataset.__getitem__(index)[1]
 print(f'Predicted: {predicted}')
 print(f'Actual: {actual}')
