@@ -103,8 +103,8 @@ if False:
     means = [np.mean(channel_1_mean), np.mean(channel_2_mean), np.mean(channel_3_mean)]
     std = [np.mean(channel_1_std), np.mean(channel_2_std), np.mean(channel_2_std)]
 else:
-    means = [0.22847716510295868, 0.3062216639518738, 0.2528402805328369]
-    std = [0.13356611132621765, 0.10527726262807846, 0.11306707561016083]
+    means = [0.23268045485019684, 0.308925062417984, 0.25266459584236145]
+    std = [0.13584113121032715, 0.10670432448387146, 0.11148916929960251]
 
 
 transformations = transforms.Compose([
@@ -115,7 +115,7 @@ transformations = transforms.Compose([
                      std=std)
     ])
     
-label = "gdp"
+label = "population"
 images = SatelliteDataset("../../data/key.csv", "../../data/images/", label=label, transformations=transformations)
 if type(images.__getitem__(0)[1]) == str:
     classification = True
@@ -182,7 +182,7 @@ class Net(nn.Module):
 
 
 lr = 1e-3
-n_epochs = 20
+n_epochs = 10
 net = Net()
 if classification:
     criterion = nn.CrossEntropyLoss()
@@ -214,7 +214,16 @@ for epoch in range(n_epochs):
             
         loss.backward()
         optimizer.step()
+    
     total_loss.append(epoch_loss)
+    if classification:
+        torch.save(net.state_dict(), 'states/classification_model.pth')
+        torch.save(optimizer.state_dict(), 'states/classification_optimizer.pth')
+    else:
+        torch.save(net.state_dict(), 'states/regression_model.pth')
+        torch.save(optimizer.state_dict(), 'states/regression_optimizer.pth')
+    # net = Net()
+    # net.load_state_dict(torch.load('states/classification_model.pth'))
     print(f'epoch {epoch}: loss {np.mean(epoch_loss)}')
 
 plt.plot(total_loss)
@@ -227,7 +236,7 @@ net.eval()
 for i, data in enumerate(test_loader, 0):
     inputs, labels = data
     actual.append(labels)
-    inputs = inputs.view(-1, channels * x_dim * y_dim)
+    # inputs = inputs.view(-1, channels * x_dim * y_dim)
     outputs = net(inputs)
     if classification:
         outputs = torch.max(outputs, 1)[1].numpy()
@@ -256,13 +265,14 @@ else:
     
     
 
-# individual check
+# individual check, have to modify to be input of 4 dimensional convolutional network
 index= 4
 if classification:
     predicted = torch.max(net(test_loader.dataset.__getitem__(index)[0].view(-1, channels * x_dim * y_dim)), 1).indices.numpy()[0]
     predicted = reverse_key[predicted]
 else:
-    predicted = round(net(test_loader.dataset.__getitem__(index)[0].view(-1, channels * x_dim * y_dim)).detach().numpy()[0][0], 0)
+    # predicted = round(net(test_loader.dataset.__getitem__(index)[0].view(-1, channels * x_dim * y_dim)).detach().numpy()[0][0], 0)
+    predicted = round(net(test_loader.dataset.__getitem__(index)[0]).detach().numpy()[0][0], 0)
 actual = test_loader.dataset.__getitem__(index)[1]
 print(f'Predicted: {predicted}')
 print(f'Actual: {actual}')
