@@ -22,6 +22,7 @@ test_ratio = 0.2
 batch_size = 10
 lr = 1e-3
 n_epochs = 20
+notes=''
 
 class SatelliteDataset(Dataset):
     def __init__(self, csv_path, image_path, label="gdp", transformations=None):
@@ -278,7 +279,8 @@ tmp = pd.DataFrame(
      'n_test_images': len(test_index),
      'epochs': n_epochs,
      'metric': metric,
-     'score': score
+     'score': score,
+     'notes': notes
      },
      index=[0])
 evaluation.append(tmp).to_csv('evaluation.csv', index=False)
