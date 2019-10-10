@@ -38,7 +38,7 @@ class SatelliteDataset(Dataset):
         """
         
         tmp = pd.read_csv(csv_path)
-        tmp = tmp.loc[~pd.isna(tmp.capture_date),:].reset_index(drop=True)
+        tmp = tmp.loc[(~pd.isna(tmp.capture_date)) & (~pd.isna(tmp[label])),:].reset_index(drop=True)
 
         self.to_tensor = transforms.ToTensor()
         self.transformations = transformations
