@@ -38,7 +38,7 @@ class SatelliteDataset(Dataset):
         """
         
         tmp = pd.read_csv(csv_path)
-        tmp = tmp.loc[~pd.isna(tmp.capture_date),:].reset_index(drop=True)
+        tmp = tmp.loc[(~pd.isna(tmp.capture_date)) & (~pd.isna(tmp[label])),:].reset_index(drop=True)
 
         self.to_tensor = transforms.ToTensor()
         self.transformations = transformations
@@ -169,9 +169,13 @@ class Net(nn.Module):
         self.linear = nn.Sequential(
             nn.Linear(128 * 128 * 32, 500),
             nn.ReLU(inplace=True),
-            nn.Linear(500, 200),
+            nn.Dropout(),
+            nn.Linear(500, 4096),
             nn.ReLU(inplace=True),
-            nn.Linear(200, n_classes),
+            nn.Dropout(),
+            nn.Linear(4096, 4096),
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, n_classes),
         )
     
     def forward(self, x):
@@ -283,10 +287,11 @@ tmp = pd.DataFrame(
      'notes': notes
      },
      index=[0])
-evaluation.append(tmp).to_csv('evaluation.csv', index=False)
+evaluation = evaluation.append(tmp)
+evaluation.to_csv('evaluation.csv', index=False)
 
 # individual check, have to modify to be input of 4 dimensional convolutional network
-index = 67
+index = 101
 if classification:
     predicted = torch.max(net(test_loader.dataset.__getitem__(index)[0].unsqueeze(0)), 1).indices.numpy()[0]
     predicted = reverse_key[predicted]
