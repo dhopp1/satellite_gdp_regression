@@ -1,2 +1,4 @@
 data/images/*
 *.pth
+data/X.csv
+data/y.csv
